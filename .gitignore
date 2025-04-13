@@ -3,3 +3,4 @@ project_io_tb
 project_io.o
 project_io_tb.o
 work-obj*
+.DS_STORE
