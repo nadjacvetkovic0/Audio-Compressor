@@ -68,8 +68,8 @@ ARCHITECTURE behavioural OF project_io_tb IS
     -- THIS IS WHERE YOU PUT YOUR BUFFERS
     -- AFTER EVERY GIVEN ONE TACT SIGNAL 'DONE' THE NEXT BUFFER IS LOADED
     SIGNAL buffer_array : memory_bank (0 to BUFFER_NUM-1) := (
-        0 => (0 => X"64", 1 => X"50", 2 => X"4B", 3 => X"58", 4 => X"66", 5 => X"78", 6 => X"6C", 7 => X"63", 8 => X"5A", 9 => X"60"),
-        1 => (0 => X"64", 1 => X"70", 2 => X"7A", 3 => X"6E", 4 => X"60", 5 => X"55", 6 => X"5A", 7 => X"64", 8 => X"6E", 9 => X"78"),
+        0 => (0 => X"64", 1 => X"70", 2 => X"7A", 3 => X"6E", 4 => X"60", 5 => X"55", 6 => X"5A", 7 => X"64", 8 => X"6E", 9 => X"78"),
+        1 => (0 => X"64", 1 => X"50", 2 => X"4B", 3 => X"58", 4 => X"66", 5 => X"78", 6 => X"6C", 7 => X"63", 8 => X"5A", 9 => X"60"),
         2 => (0 => X"78", 1 => X"6E", 2 => X"64", 3 => X"5A", 4 => X"50", 5 => X"46", 6 => X"4B", 7 => X"55", 8 => X"5F", 9 => X"69")        
     );
     

@@ -1,104 +1,97 @@
--- Include necessary IEEE libraries
 LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
 USE ieee.numeric_std.ALL;
 
--- Define the entity with input/output ports
+-- Entity definition with I/O ports
 ENTITY project_io IS
     PORT (
         clk : IN STD_LOGIC;                              -- Clock signal
         rst : IN STD_LOGIC;                              -- Reset signal
-        enable : IN STD_LOGIC;                           -- Enable signal to start the process
-        done : OUT STD_LOGIC := '0';                            -- Signal to indicate completion
-        in_read_enable : OUT STD_LOGIC := '0';           -- Signal to enable reading from input buffer
-        in_index : OUT INTEGER;                          -- Index for reading input data
+        enable : IN STD_LOGIC;                           -- Enable signal to start the operation
+        done : OUT STD_LOGIC := '0';                     -- Indicates processing is complete
+        in_read_enable : OUT STD_LOGIC := '0';           -- Enables reading from the input
+        in_index : OUT INTEGER;                          -- Index of the current input being read
         in_data : IN STD_LOGIC_VECTOR (7 DOWNTO 0);      -- Input data (8-bit)
-        out_write_enable : OUT STD_LOGIC := '0';         -- Signal to enable writing to output buffer
-        out_index : OUT INTEGER;                         -- Index for writing output data
+        out_write_enable : OUT STD_LOGIC := '0';         -- Enables writing to the output
+        out_index : OUT INTEGER;                         -- Index of the current output being written
         out_data : OUT STD_LOGIC_VECTOR (7 DOWNTO 0);    -- Output data (8-bit)
-        in_buff_size : OUT INTEGER := 200;               -- Size of input buffer
-        out_buff_size : OUT INTEGER := 100               -- Size of output buffer
+        in_buff_size : OUT INTEGER := 200;               -- Input buffer size
+        out_buff_size : OUT INTEGER := 100               -- Output buffer size
     );
 END ENTITY project_io;
 
--- Define the architecture for the entity
+-- Architecture defining the behavior
 ARCHITECTURE behavioural OF project_io IS
 
-    -- Define an array to store 200 bytes of input data
-    TYPE mem_array IS ARRAY (0 TO 199) OF STD_LOGIC_VECTOR(7 DOWNTO 0);
-    SIGNAL input_data : mem_array;
-
-    -- Internal signals for counters and state tracking
-    SIGNAL clk_cnt : INTEGER := 0;
+    -- Internal counter to track how many inputs have been processed
     SIGNAL in_cnt : INTEGER := 0;
-    SIGNAL out_cnt : INTEGER := 0;
-    SIGNAL prev_sample : INTEGER := 0;                  -- Previous sample value for differencing
-    SIGNAL temp_data : STD_LOGIC_VECTOR(7 DOWNTO 0);    -- Temporary storage for output
-    SIGNAL done_s : STD_LOGIC := '0';                   -- Internal done signal
-    SIGNAL processing : BOOLEAN := FALSE;               -- Indicates processing phase
+
+    -- Holds the previous sample value to compute the difference
+    SIGNAL prev_sample : INTEGER := 0;
+
+    -- Temporary storage for the output value
+    SIGNAL temp_data : STD_LOGIC_VECTOR(7 DOWNTO 0);
+
+    -- Indicates whether processing is currently ongoing
+    SIGNAL processing : BOOLEAN := FALSE;
 
 BEGIN
-    -- Main process that responds to clock and reset
+    -- Main sequential process
     PROCESS (clk, rst)
-        VARIABLE diff : INTEGER;                        -- Variable to hold computed difference
+        VARIABLE diff : INTEGER;                         -- Difference between current and previous samples
+        VARIABLE current_sample : INTEGER;               -- Current sample converted to integer
     BEGIN
-        -- Reset logic
+        -- Reset logic: resets counters, flags and disables signals
         IF rst = '1' THEN
+            in_cnt <= 0;
+            prev_sample <= 0;
             in_read_enable <= '0';
             out_write_enable <= '0';
             done <= '0';
-            done_s <= '0';
-            in_cnt <= 0;
-            out_cnt <= 0;
             processing <= FALSE;
 
-        -- On rising clock edge
+        -- Executes on rising clock edge
         ELSIF rising_edge(clk) THEN
-            -- If enabled and not already done
-            IF enable = '1' AND done_s = '0' THEN
-                -- Read 200 samples from input
-                IF in_cnt < 200 THEN
-                    in_read_enable <= '1';
-                    in_index <= in_cnt;
-                    input_data(in_cnt) <= in_data;
+            -- If enabled and not all inputs have been processed
+            IF enable = '1' AND in_cnt < 200 THEN
+                in_read_enable <= '1';                   -- Allow reading input
+                in_index <= in_cnt;                      -- Set input index
+
+                current_sample := TO_INTEGER(UNSIGNED(in_data)); -- Convert input to integer
+
+                -- First sample: pass through directly
+                IF in_cnt = 0 THEN
+                    -- Pass through the first sample unmodified
+                    temp_data <= in_data;
+                    out_data <= in_data;
+                    out_write_enable <= '1';
+                    out_index <= in_cnt;
+                    prev_sample <= current_sample;
                     in_cnt <= in_cnt + 1;
                 ELSE
-                    in_read_enable <= '0';              -- Stop reading
-                    processing <= TRUE;                 -- Begin processing
-                END IF;
-
-            -- Processing the input data (differencing)
-            ELSIF processing = TRUE THEN
-                out_write_enable <= '1';
-
-                -- First sample is copied as-is
-                IF out_cnt = 0 THEN
-                    out_data <= input_data(0);
-                    prev_sample <= TO_INTEGER(UNSIGNED(input_data(0)));
-                    out_index <= out_cnt;
-                    out_cnt <= out_cnt + 1;
-
-                -- For remaining samples, calculate difference from previous sample
-                ELSIF out_cnt < 200 THEN
-                    diff := TO_INTEGER(UNSIGNED(input_data(out_cnt))) - prev_sample;
-                    temp_data <= STD_LOGIC_VECTOR(TO_SIGNED(diff, 8));  -- Convert to signed and back to std_logic_vector
+                    -- Compute difference from previous sample
+                    diff := current_sample - prev_sample;
+                    temp_data <= STD_LOGIC_VECTOR(TO_SIGNED(diff, 8));
                     out_data <= temp_data;
-                    prev_sample <= TO_INTEGER(UNSIGNED(input_data(out_cnt)));  -- Update previous sample
-                    out_index <= out_cnt;
-                    out_cnt <= out_cnt + 1;
-
-                -- All samples processed
-                ELSE
-                    out_write_enable <= '0';
-                    out_index <= 0;
-                    done_s <= '1';                      -- Indicate done internally
-                    processing <= FALSE;                -- End processing phase
+                    out_write_enable <= '1';
+                    out_index <= in_cnt;
+                    prev_sample <= current_sample;
+                    in_cnt <= in_cnt + 1;
                 END IF;
 
-            -- Finalize done signal
-            ELSIF done_s = '1' THEN
-                done <= '1';                            -- Notify that operation is complete
-                done_s <= '0';                          -- Reset internal done signal
+
+                -- Write the result to output
+                out_data <= temp_data;
+                out_write_enable <= '1';                 -- Enable output write
+                out_index <= in_cnt;                     -- Set output index
+
+                in_cnt <= in_cnt + 1;                    -- Move to next sample
+
+            -- All samples processed
+            ELSIF in_cnt >= 200 THEN
+                in_read_enable <= '0';                   -- Disable input reading
+                out_write_enable <= '0';                 -- Disable output writing
+                done <= '1';                             -- Signal completion
             END IF;
         END IF;
     END PROCESS;
